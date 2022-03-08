@@ -1,0 +1,340 @@
+---
+title: "HPI estimation"
+author: "James Watson"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(cache = TRUE, cache.comments = FALSE,
+                      echo = F, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+```
+
+session info
+
+```{r}
+library(doParallel)
+library(tictoc)
+sessionInfo()
+RUN_SIMS=F
+```
+
+
+## Get data and make analysis ready datasets
+
+We download two datasets:
+
+* The *P. falciparum* reference transcriptome from Bozdech *et al* (hosted on the PLoS Biology website)
+* RNA seq data from Andrade et al: hosted on Gene Expression Omnibus (GEO), accession number GSE148125
+
+```{r get_data}
+ffs = list.files() # get files downloaded to current directory
+# Bozdech reference data
+f_name_ref = "Bozdech.txt"
+if(! f_name_ref %in% ffs){
+  my_dest = paste(getwd(),f_name_ref,sep='/')
+  url1 <- "https://journals.plos.org/plosbiology/article/file?type=supplementary&id=10.1371/journal.pbio.0000005.sd002"
+  download.file(url1, destfile = my_dest)
+}
+
+# Andrade RNA seq data
+f_name_Andrade = "Andrade.txt"
+if(! f_name_Andrade %in% ffs){
+  url2 = 'https://www.ncbi.nlm.nih.gov/geo/download/?acc=GSE148125&format=file&file=GSE148125%5FHS131%5Fnormalized%5Fcounts%2Etxt%2Egz'
+  my_dest = paste(getwd(),'/',f_name_Andrade,'.gz', sep='')
+  download.file(url2, destfile = my_dest)
+  system(paste('gzip -d ',f_name_Andrade,'.gz', sep=''))
+}
+```
+
+We need to do some cleaning so that the gene names across the two datasets can be matched. This may not be optimal or fully correct but it seems to give a reasonable number of matches.
+
+```{r cleaning_data}
+ffs = list.files() # get files downloaded to current directory
+f_ref_clean = "Bozdech_clean.txt"
+f_dat_clean = "Andrade_clean.txt"
+
+# cleaning for the ref transcriptome
+if(! f_ref_clean %in% ffs){
+  Hb3 = readr::read_delim(f_name_ref, delim = "\t",escape_double = FALSE, trim_ws = TRUE)
+  Hb3$Name = NA
+  ## Trim comments off to get gene names
+  for(i in 1:nrow(Hb3)){
+    Hb3$Name[i] = unlist(strsplit(x = Hb3$NAME[i], split = '::'))[2]
+  }
+  Hb3 = Hb3[!is.na(Hb3$Name), ]
+  
+  ind_null = (Hb3$Name=='NULL')
+  Hb3 = Hb3[!ind_null, ]
+  Hb3 = cbind(Name = Hb3$Name, Hb3[, 3:48]) # reorder so Name is first column
+  
+  # get rid of duplicated and average over observed duplicates
+  for(id in unique(Hb3$Name)){
+    ind = which(Hb3$Name == id)
+    if(length(ind)>1){
+      xx = Hb3[ind, 2:47]
+      Hb3[ind[1], 2:47] = colMeans(xx, na.rm = T)
+      Hb3 = Hb3[-ind[2:length(ind)], ]
+    }
+  }
+  rm(xx)
+  #check no duplicates left
+  sum(duplicated(Hb3$Name))==0
+  # remove genes with more than 10/48 entries missing
+  ind = apply(Hb3[, -1], 1, function(x) sum(is.na(x))) >10
+  Hb3 = Hb3[!ind,]
+  
+  # write clean file
+  write.csv(x = Hb3, file = f_ref_clean, quote = F,row.names = F)
+}
+
+# cleaning for the RNA seq transcript data
+if(! f_dat_clean %in% ffs){
+  dat_Andrade = readr::read_delim(f_name_Andrade,
+                                  delim = "\t", escape_double = FALSE,
+                                  trim_ws = TRUE)
+  
+  dat_Andrade = dat_Andrade[, -c(1,3)]
+  colnames(dat_Andrade)[1] = 'Name'
+  ## Trim comments off gene names
+  for(i in grep(';', dat_Andrade$Name,fixed = T) ){
+    dat_Andrade$Name[i] = unlist(strsplit(x = dat_Andrade$Name[i], split = ';'))[1]
+  }
+  
+  
+  # write clean file
+  write.csv(x = dat_Andrade, file = f_dat_clean, quote = F,row.names = F)
+}
+```
+
+
+## Analysis using method by Lemieux et al
+
+
+Lemieux et al (PNAS, 2008) proposed a simple approach for estimating the hours post invasion (hpi) for an in vivo sample. The reference data $z$ from Bozdech et al can be thought of a cyclical process $z_g$ for each gene $g$. They proposed first to estimate $z_g$ using smoothing splines. Then the "distance" of the data $x$ and the reference genome at each timepoint $t\in [0,48]$ can be calculated as the sum of squared residuals $z_g(t) - x_g$ (i.e. Gaussian likelihood for the residuals). The MLE $t^*$ is then the value of $t$ that minimises these residuals.
+
+A key issue is that the reference data $z$ and the testing data $x$ are not in the same units. The reference data are microarray data (intensity values on a microarray); the data from Andrade et al are RNA seq data: Illumina read counts (going from 0 to around 100,000).
+
+We use the original code written by Avi Feller (R script *Avi_Feller_functions.R*).
+
+
+```{r hpi_estimates_Andrade}
+source('Avi_Feller_functions.R')
+
+# The following code is adapted from Avi Feller's original R code pipeline
+z = read.csv(f_ref_clean, as.is = T)
+x = read.csv(f_dat_clean, as.is = T)
+
+# matching gene names across the two datasets:
+writeLines(sprintf('There are %s gene names that match across Bozdech reference transcriptome and the Andrade et al RNA seq dataset', length(intersect(x$Name , z$Name))))
+
+## Sync data
+# Ensures that data sets contain the same genes and are in the same order
+# Note that first column must be gene description titled "Name"
+data = sync_data(x, z)
+x = data[[1]]
+z = data[[2]]
+
+# This is necessary for comparisons between different data modalities
+# Returns a matrix and if `use.name = T', removes first "Name" column
+x = ordinal(x, use.name = T)
+z = ordinal(z, use.name = T)
+
+
+# For later interpretability, we impute the missing time points (23 and 29 HPI)
+# for the Hb3 reference set. This method interpolates missing values using
+# smoothing splines, though other approaches are possible.
+z.na <- cbind(z[,1:22], rep(NA, nrow(z)), z[,23:27],
+              rep(NA, nrow(z)), z[,28:46])
+z <- t(apply(z.na, 1, smooth.missing))
+
+# Estimate of background noise obtained by comparing Hb3 and 3D7 samples
+sigma.epsilon <- 789.9056
+
+
+## Smooth reference data set
+# This smooths the time course for each gene in the reference set using a
+# smoothing spline. There is also a loess implementation.
+# `spar' is the parameter of smoothing
+z.smooth <- smooth.ref(z, method = "spline", spar = 0.5)
+
+## Estimate residual of smoothing
+z.smooth.hourly <- z.smooth[,ll.par$hourly]
+sigma.eta <- mean(sd(z - z.smooth.hourly, na.rm = T), na.rm=T)
+
+## Calculate new sigma based on sigma_eta and sigma_epsilon
+new.sigma <- sqrt(sigma.eta^2 + sigma.epsilon^2)
+
+ll <- compute.ll(x = x, z = z.smooth, sigma = new.sigma)
+
+par(mfrow = c(2,1),las=1)
+hist(mle(ll)[1:12], xlim = c(7,15),main='Asymptomatic',
+     breaks = seq(7,15, by=.5),xlab='Hours post invasion',ylab='Number of sample')
+hist(mle(ll)[13:24], xlim = c(7,15),main='Symptomatic',
+     breaks = seq(7,15, by=.5),xlab='Hours post invasion',ylab='Number of sample')
+
+writeLines(sprintf('The difference between the median values in each group is %s hours', median(mle(ll)[1:12])-median(mle(ll)[13:24])))
+```
+
+## Gene expression is more consistent with asynchrony in the asymptomatics
+
+
+```{r asynchrony, fig.height=6, fig.width=8}
+# Need to re-load the data
+z = read.csv(f_ref_clean, as.is = T)
+x = read.csv(f_dat_clean, as.is = T)
+
+my_rows = intersect(x$Name, z$Name)
+x = x[x$Name %in% my_rows, -1]
+z = z[z$Name %in% my_rows, -1]
+
+par(mfrow=c(1,2), las=1)
+ind = order(x[,1])
+plot(1:length(ind), log10(x[ind,1]+.1), type='l',
+     panel.first=grid(), main='Malian children',
+     ylim = c(-1, max(log10(x +.1))), yaxt='n',
+     xlab='Gene rank',ylab='Gene expression (read counts)')
+axis(2, at = c(-1:4), labels = c(0, 10^(0:4)))
+for(i in 2:12){
+  ind = order(x[,i])
+  lines(1:length(ind), log10(x[ind,i]+.1), type='l')
+}
+for(i in 13:24){
+  ind = order(x[,i])
+  lines(1:length(ind), log10(x[ind,i]+.1), type='l',col='red')
+}
+legend('topleft', col=1:2, legend = c('Asymptomatic','Symptomatic'),lwd=2,inset=0.03)
+
+cols = rainbow(46)
+ind = order(z[,1])
+plot(1:length(ind), z[ind,1], type='l', col=cols[1],
+     panel.first=grid(),main = 'Reference data (Bozdech et al)',
+     ylim = range(z,na.rm = T),
+     xlab='Gene rank',ylab='Gene expression (microarray intensity)')
+for(j in 2:46){
+  ind = order(z[,j])
+  lines(1:length(ind), z[ind,j], type='l',col=cols[j])
+}
+legend('topleft', col=cols[seq(1,46,length.out = 6)],title = 'hpi',
+       legend = seq(1,46,length.out = 6),lwd=2,inset = 0.03)
+```
+
+
+
+## Simulations: sensitivity to asynchrony
+
+
+A population of parasites within a host are never in complete synchrony (i.e. not all at exactly the same developmental stage).
+In symptomatic malaria we do usually see quite synchronous infections, for example the work by Fairley (1947) showed that parasitaemia over time followed an increasing sine-wave pattern. This is driven by concurrent schizogony followed by sequestration.
+Synchronicity in symptomatic malaria is partly driven by fever (see Kwiatkowski. Febrile temperatures can synchronize the growth of Plasmodium falciparum in vitro. J Exp Med. 1989).
+
+
+```{r sims}
+# re-load data
+z = read.csv(f_ref_clean, as.is = T)
+z = as.matrix(z[,-1])
+# impute missing data
+z.na = cbind(z[,1:22], rep(NA, nrow(z)), z[,23:27],
+             rep(NA, nrow(z)), z[,28:46])
+z = t(apply(z.na, 1, smooth.missing))
+sigma.epsilon = 1
+z.smooth = smooth.ref(z, method = "spline", spar = 0.5)
+## Estimate residual of smoothing
+z.smooth.hourly = z.smooth[,ll.par$hourly]
+sigma.eta = mean(sd(z - z.smooth.hourly, na.rm = T), na.rm=T)
+
+## Calculate new sigma based on sigma_eta and sigma_epsilon
+new.sigma = sqrt(sigma.eta^2 + sigma.epsilon^2)
+
+
+## Guess-timates of the circulating probabilities (1 - proportion sequestered)
+# this is just for illustration for the simulations - we don't actually know what these are
+# however we do know that <100% sequester as it is possible to see mature stages in severe malaria when there is very large biomass
+P_circ = c(rep(1, 16),
+           10^seq(0, -3, length.out = 22),
+           10^rep(-3, 10))
+par(las=1)
+plot(1:48, log10(P_circ), type='l',lwd=3, ylab='Log10 probability of circulation',xlab='Age (hours)')
+
+
+
+Ncells = 10^4 # number of cells to simulate
+K_mult=1 # multiplication rate from previous cycle
+thetas = expand.grid(mu = seq(1,15, length.out = 5), # mean age
+                     sigma = seq(1, 13, length.out = 5), # SD of age
+                     it = 1:20) # number of simulations per combination
+if(RUN_SIMS){
+  # do the simulations in parallel as they take a while
+  cl <- makePSOCKcluster(detectCores())
+  registerDoParallel(cl)
+  tic()
+  tstar_vals = foreach(id = 1:nrow(thetas), .combine = rbind) %dopar% {
+    stage_props = array(dim = 48)
+    aa = 0:48 # discretise time into hourly blocks
+    mu = thetas$mu[id]
+    sigma=thetas$sigma[id]
+    
+    # we estimate the proportion of parasites at each hourly segment
+    for(j in 1:48){
+      stage_props[j] = (pnorm(aa[j+1], mu, sigma)- # current cycle
+                          pnorm(aa[j], mu, sigma))+
+        K_mult*(pnorm(48+aa[j+1],mu, sigma)- # next cycle
+                  pnorm(48+aa[j], mu, sigma)) +
+        (pnorm(-48+aa[j+1], mu, sigma)- # previous cycle
+           pnorm(-48+aa[j], mu, sigma))/K_mult;
+    }
+    
+    # no sequestration
+    # we sample Ncells from the true proportions (ignoring sequestration)
+    mu_k = sample(1:48, size = Ncells, replace = T, prob = stage_props)
+    transcripts = z[, mu_k, drop=F] # make a transcript dataset from reference
+    out = rowMeans(transcripts) # take average
+    tstar1 = mle(compute.ll(x = matrix(out,ncol = 1), z = z.smooth,
+                            sigma = 1)) # compute MLE
+    
+    # sequestration
+    # compute circulating proportions
+    stage_props = stage_props * P_circ
+    stage_props = stage_props/sum(stage_props)
+    # we sample Ncells from the circulating proportions
+    mu_k = sample(1:48, size = Ncells, replace = T, prob = stage_props)
+    transcripts = z[, mu_k, drop=F] # make a transcript dataset from reference
+    out = rowMeans(transcripts) # take average
+    tstar2 = mle(compute.ll(x = matrix(out,ncol = 1), z = z.smooth,
+                            sigma = 1)) # compute MLE
+    
+    # return both values
+    tstar = c(tstar1, tstar2)
+  }
+  toc()
+  save(tstar_vals, file = 'sim_out.RData')
+  stopCluster(cl)
+} else {
+  load(file = 'sim_out.RData')
+}
+```
+
+
+
+```{r sim_results, fig.height=6, fig.width=8}
+par(las=1, mfrow=c(1,2))
+cols1 = RColorBrewer::brewer.pal(n = 5, 'Dark2')
+plot(jitter(thetas$sigma), tstar_vals[,1] %% 48,panel.first = grid(),
+     col = cols1[as.numeric(as.factor(thetas$mu))],
+     xlab='Standard deviation of parasite age (hours)',
+     ylab='Estimated age (hours)',main='No sequestration')
+
+abline(h = unique(thetas$mu), col=cols1,lwd=2, lty=2)
+
+
+plot(jitter(thetas$sigma), tstar_vals[,2] %% 48,panel.first = grid(),
+     col = cols1[as.numeric(as.factor(thetas$mu))],
+     xlab='Standard deviation of parasite age (hours)',
+     ylab='Estimated age (hours)',main='Sequestration')
+abline(h = unique(thetas$mu), col=cols1,lwd=2, lty=2)
+legend('bottomright', pch=16, legend = rev(unique(thetas$mu)), col=rev(cols1),
+       inset=0.03,title = 'Mean age')
+```
+
