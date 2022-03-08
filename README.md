@@ -12,7 +12,7 @@ Key messages:
 
 ## Synchronicity of infection
 
-Brigadier Hamilton Fairley did some pretty cool experiments (subinoculations of vivax and falciparum). Vivax doesn't sequester: he showed a log-linear increase in parasite densities. Falciparum does sequester so we see a sine-wave increase in parasite densities
+Brigadier Hamilton Fairley did some pretty cool experiments (subinoculations of vivax and falciparum). Vivax doesn't sequester: he showed a log-linear increase in parasite densities. Falciparum does sequester so we see a sine-wave increase in parasite densities:
 
 
 ![Sine-wave increase in parasite densities from Hamilton Fairley's experiments](Fairley1947.png)

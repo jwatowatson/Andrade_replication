@@ -2,7 +2,10 @@
 title: "HPI estimation"
 author: "James Watson"
 date: 8/03/2022
-output: html_document
+output: 
+  html_document: 
+    toc: yes
+    keep_md: yes
 ---
 
 ```{r setup, include=FALSE}
