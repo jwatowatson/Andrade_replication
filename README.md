@@ -12,7 +12,7 @@ Key messages:
 
 ## Synchronicity of infection
 
-Brigadier Sir Neil Hamilton Fairley did some pretty cool experiments at the Cairns experimental station (Sidelights on malaria in man obtained by subinoculation experiments, 1947). Vivax doesn't sequester and he showed a log-linear increase in parasite densities. Falciparum does sequester so we see a sine-wave increase in parasite densities:
+Brigadier Sir Neil Hamilton Fairley did some pretty cool experiments at the Cairns experimental station (*Sidelights on malaria in man obtained by subinoculation experiments*, 1947). Vivax doesn't sequester and he showed a log-linear increase in parasite densities. Falciparum does sequester so we see a sine-wave increase in parasite densities:
 
 
 ![Sine-wave increase in parasite densities from Hamilton Fairley's experiments](Fairley1947.png)
@@ -21,6 +21,11 @@ The sine-wave pattern is explained by two things:
 
 * Sequestration of mature stages (large rings onwards)
 * Relative synchronicity of infection (helped by fever) - if the infection was not synchronous we would not see the sine-wave (cancelled out by the variance in ages)
+
+A more recent (but still 30 years old) paper by Nick White and colleagues also looks at synchronicity in infections (*The effects of multiplication and syn- chronicity on the vascular distribution of parasites in falciparum malaria*. 1992). They put together a mathematical model of peripheral parasite density as a function of the mean age (hours post invasion) and the synchronicity (standard deviation of the age disribution). They have some really interesting data from 4 patients who were treated with cipro (completely ineffective). These patients were then given rescue quinine treatment when the parasitaemia didn't go down. You can see the amazing sine-wave parasitaemia curves in the 4 patients in Figure 8 of the paper:
+
+![](White_Chapman_Watt_Fig8.png)
+
 
 
 ## Simulations
