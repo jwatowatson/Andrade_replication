@@ -1,6 +1,6 @@
 # Andrade_replication
 
-The code in this repository is a re-analysis of RNA seq data from Andrade et al and some simulations to test sensitivity of the underlying algorithm that estimates the hours post invasion (hpi) from in vivo transcriptomics data.
+The code in this repository is a re-analysis of RNA seq data from Andrade et al and some simulations to test sensitivity of the underlying algorithm that estimates the hours post invasion (hpi) from in vivo transcriptomics data. The RMarkdown script *hpi_estimation.Rmd* downloads the data; does some cleaning of gene names; fits the Lemieux et al MLE model; does some gene expression comparisons based on ranks; and then does some simulations that show pathological behaviour of the Lemieux et al algorithm in asynchronous infections.
 
 
 Key messages:
@@ -12,7 +12,7 @@ Key messages:
 
 ## Synchronicity of infection
 
-Brigadier Hamilton Fairley did some pretty cool experiments (subinoculations of vivax and falciparum). Vivax doesn't sequester: he showed a log-linear increase in parasite densities. Falciparum does sequester so we see a sine-wave increase in parasite densities:
+Brigadier Sir Neil Hamilton Fairley did some pretty cool experiments at the Cairns experimental station (Sidelights on malaria in man obtained by subinoculation experiments, 1947). Vivax doesn't sequester and he showed a log-linear increase in parasite densities. Falciparum does sequester so we see a sine-wave increase in parasite densities:
 
 
 ![Sine-wave increase in parasite densities from Hamilton Fairley's experiments](Fairley1947.png)
