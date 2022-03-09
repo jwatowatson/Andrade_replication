@@ -1,6 +1,6 @@
 # Andrade_replication
 
-The code in this repository provides a re-analysis of RNA seq data from Andrade et al and some simulations to test sensitivity of the underlying algorithm that estimates the hours post invasion (hpi) from in vivo transcriptomics data. The RMarkdown script *hpi_estimation.Rmd* downloads the data; does some cleaning of gene names; fits the Lemieux et al MLE model; does some gene expression comparisons based on ranks; and then does some simulations that show pathological behaviour of the Lemieux et al algorithm in asynchronous infections.
+The code in this repository provides a re-analysis of RNA seq data from [Andrade et al](https://www.nature.com/articles/s41591-020-1084-0) and some simulations to test sensitivity of the underlying algorithm that estimates the hours post invasion (hpi) from in vivo transcriptomics data. The RMarkdown script *hpi_estimation.Rmd* downloads the data; does some cleaning of gene names; fits the Lemieux et al MLE model; does some gene expression comparisons based on ranks; and then does some simulations that show pathological behaviour of the Lemieux et al algorithm in asynchronous infections.
 
 
 Key messages:
