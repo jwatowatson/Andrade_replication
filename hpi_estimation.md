@@ -1,5 +1,5 @@
 ---
-title: "HPI estimation"
+title: "HPI estimation: Andrade et al Nat Medicine"
 author: "James Watson"
 date: 8/03/2022
 output: 
@@ -10,7 +10,8 @@ output:
 
 
 
-session info
+
+Session info
 
 
 ```
@@ -23,7 +24,7 @@ session info
 ## LAPACK: /Library/Frameworks/R.framework/Versions/4.0/Resources/lib/libRlapack.dylib
 ## 
 ## locale:
-## [1] en_GB.UTF-8/en_GB.UTF-8/en_GB.UTF-8/C/en_GB.UTF-8/en_GB.UTF-8
+## [1] en_US.UTF-8/en_US.UTF-8/en_US.UTF-8/C/en_US.UTF-8/en_US.UTF-8
 ## 
 ## attached base packages:
 ## [1] parallel  stats     graphics  grDevices utils     datasets  methods  
@@ -33,11 +34,11 @@ session info
 ## [1] tictoc_1.0.1      doParallel_1.0.16 iterators_1.0.13  foreach_1.5.1    
 ## 
 ## loaded via a namespace (and not attached):
-##  [1] codetools_0.2-18 digest_0.6.27    R6_2.5.1         jsonlite_1.7.2  
-##  [5] magrittr_2.0.1   evaluate_0.14    rlang_0.4.11     stringi_1.7.4   
-##  [9] jquerylib_0.1.4  bslib_0.3.0      rmarkdown_2.11   tools_4.0.2     
-## [13] stringr_1.4.0    xfun_0.26        yaml_2.2.1       fastmap_1.1.0   
-## [17] compiler_4.0.2   htmltools_0.5.2  knitr_1.34       sass_0.4.0
+##  [1] codetools_0.2-18 digest_0.6.28    R6_2.5.1         jsonlite_1.7.2  
+##  [5] magrittr_2.0.1   evaluate_0.14    rlang_0.4.12     stringi_1.7.5   
+##  [9] jquerylib_0.1.4  bslib_0.3.1      rmarkdown_2.11   tools_4.0.2     
+## [13] stringr_1.4.0    xfun_0.27        yaml_2.2.1       fastmap_1.1.0   
+## [17] compiler_4.0.2   htmltools_0.5.2  knitr_1.36       sass_0.4.0
 ```
 
 
@@ -63,6 +64,7 @@ Lemieux et al (PNAS, 2008) proposed a simple approach for estimating the hours p
 A key issue is that the reference data $z$ and the testing data $x$ are not in the same units. The reference data are microarray data (intensity values on a microarray); the data from Andrade et al are RNA seq data: Illumina read counts (going from 0 to around 100,000).
 
 We use the original code written by Avi Feller (R script *Avi_Feller_functions.R*).
+The file *Asymptomatic_data_Original.csv* contain the data supplied by the authors used in the original analysis. We use it to replicate the original results for the hours post invasion which were wrong.
 
 
 
@@ -70,7 +72,7 @@ We use the original code written by Avi Feller (R script *Avi_Feller_functions.R
 ## There are 3262 gene names that match across Bozdech reference transcriptome and the Andrade et al RNA seq dataset
 ```
 
-![](hpi_estimation_files/figure-html/hpi_estimates_Andrade-1.png)<!-- -->
+![](hpi_estimation_files/figure-html/hpi_plot-1.png)<!-- -->
 
 ```
 ## The difference between the median values in each group is 4.45 hours

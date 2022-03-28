@@ -1,5 +1,5 @@
 ---
-title: "HPI estimation"
+title: "HPI estimation: Andrade et al Nat Medicine"
 author: "James Watson"
 date: 8/03/2022
 output: 
@@ -15,7 +15,8 @@ knitr::opts_chunk$set(cache = TRUE, cache.comments = FALSE,
                       fig.pos = 'H',dev = 'png', dpi = 300)
 ```
 
-session info
+
+Session info
 
 ```{r}
 library(doParallel)
@@ -121,6 +122,7 @@ Lemieux et al (PNAS, 2008) proposed a simple approach for estimating the hours p
 A key issue is that the reference data $z$ and the testing data $x$ are not in the same units. The reference data are microarray data (intensity values on a microarray); the data from Andrade et al are RNA seq data: Illumina read counts (going from 0 to around 100,000).
 
 We use the original code written by Avi Feller (R script *Avi_Feller_functions.R*).
+The file *Asymptomatic_data_Original.csv* contain the data supplied by the authors used in the original analysis. We use it to replicate the original results for the hours post invasion which were wrong.
 
 
 ```{r hpi_estimates_Andrade}
@@ -136,9 +138,9 @@ writeLines(sprintf('There are %s gene names that match across Bozdech reference 
 ## Sync data
 # Ensures that data sets contain the same genes and are in the same order
 # Note that first column must be gene description titled "Name"
-data = sync_data(x, z)
-x = data[[1]]
-z = data[[2]]
+data1 = sync_data(x, z)
+x = data1[[1]]
+z = data1[[2]]
 
 # This is necessary for comparisons between different data modalities
 # Returns a matrix and if `use.name = T', removes first "Name" column
@@ -149,34 +151,52 @@ z = ordinal(z, use.name = T)
 # For later interpretability, we impute the missing time points (23 and 29 HPI)
 # for the Hb3 reference set. This method interpolates missing values using
 # smoothing splines, though other approaches are possible.
-z.na <- cbind(z[,1:22], rep(NA, nrow(z)), z[,23:27],
+z.na = cbind(z[,1:22], rep(NA, nrow(z)), z[,23:27],
               rep(NA, nrow(z)), z[,28:46])
-z <- t(apply(z.na, 1, smooth.missing))
+z = t(apply(z.na, 1, smooth.missing))
 
 # Estimate of background noise obtained by comparing Hb3 and 3D7 samples
-sigma.epsilon <- 789.9056
+sigma.epsilon = 789.9056
 
 
 ## Smooth reference data set
 # This smooths the time course for each gene in the reference set using a
 # smoothing spline. There is also a loess implementation.
 # `spar' is the parameter of smoothing
-z.smooth <- smooth.ref(z, method = "spline", spar = 0.5)
+z.smooth = smooth.ref(z, method = "spline", spar = 0.5)
 
 ## Estimate residual of smoothing
-z.smooth.hourly <- z.smooth[,ll.par$hourly]
-sigma.eta <- mean(sd(z - z.smooth.hourly, na.rm = T), na.rm=T)
+z.smooth.hourly = z.smooth[,ll.par$hourly]
+sigma.eta = mean(sd(z - z.smooth.hourly, na.rm = T), na.rm=T)
 
 ## Calculate new sigma based on sigma_eta and sigma_epsilon
-new.sigma <- sqrt(sigma.eta^2 + sigma.epsilon^2)
+new.sigma = sqrt(sigma.eta^2 + sigma.epsilon^2)
 
-ll <- compute.ll(x = x, z = z.smooth, sigma = new.sigma)
+ll = compute.ll(x = x, z = z.smooth, sigma = new.sigma)
+mle_est = mle(ll)
+```
 
-par(mfrow = c(2,1),las=1)
-hist(mle(ll)[1:12], xlim = c(7,15),main='Asymptomatic',
-     breaks = seq(7,15, by=.5),xlab='Hours post invasion',ylab='Number of sample')
-hist(mle(ll)[13:24], xlim = c(7,15),main='Symptomatic',
-     breaks = seq(7,15, by=.5),xlab='Hours post invasion',ylab='Number of sample')
+```{r hpi_plot, fig.width=9, fig.height=3}
+par(las=1, mfrow=c(1,3), family='serif',cex.lab=1.3, cex.axis=1.3)
+# layout(mat = matrix(c(1,2,3,3),nrow = 2,byrow = T))
+hist(mle_est[1:12], xlim = c(5.5,15),main='Asymptomatic',
+     breaks = seq(5.5,15, by=.5),xlab='hpi',ylab='Number of sample')
+hist(mle_est[13:24], xlim = c(5.5,15),main='Symptomatic',
+     breaks = seq(5.5,15, by=.5),xlab='hpi',ylab='Number of sample')
+
+# load published results (Supplementary data from https://www.nature.com/articles/s41467-021-25062-z#Sec22)
+pub_hpi = read.csv('Published_hpi_Andrade.csv')
+pub_hpi = pub_hpi[!duplicated(pub_hpi$ID), ] # there is duplicate ID - typo in their data
+names(mle_est) = gsub(pattern = 'kali',replacement = 'k',x = names(mle_est))
+mle_est = mle_est[pub_hpi$ID]
+
+plot(mle_est, pub_hpi$hpi, col = as.numeric(pub_hpi$Para>12) +1, 
+     panel.first=grid(), ylim = c(5,24), xlim=c(5,24),pch=16,
+     xlab='True hpi estimates', ylab='Published hpi estimates')
+lines(0:48, 0:48,lwd=2,lty=2)
+legend('bottomright', col=1:2, 
+       legend = c('Asymptomatic','Symptomatic'),
+       pch=16,inset=0.03)
 
 writeLines(sprintf('The difference between the median values in each group is %s hours', median(mle(ll)[1:12])-median(mle(ll)[13:24])))
 ```
@@ -193,7 +213,7 @@ my_rows = intersect(x$Name, z$Name)
 x = x[x$Name %in% my_rows, -1]
 z = z[z$Name %in% my_rows, -1]
 
-par(mfrow=c(1,2), las=1)
+par(mfrow=c(1,2), las=1, family='serif',cex.lab=1.3, cex.axis=1.3)
 ind = order(x[,1])
 plot(1:length(ind), log10(x[ind,1]+.1), type='l',
      panel.first=grid(), main='Malian children',
@@ -258,7 +278,7 @@ new.sigma = sqrt(sigma.eta^2 + sigma.epsilon^2)
 P_circ = c(rep(1, 16),
            10^seq(0, -3, length.out = 22),
            10^rep(-3, 10))
-par(las=1)
+par(las=1, family='serif',cex.lab=1.3, cex.axis=1.3)
 plot(1:48, log10(P_circ), type='l',lwd=3, ylab='Log10 probability of circulation',xlab='Age (hours)')
 
 
@@ -322,7 +342,7 @@ if(RUN_SIMS){
 
 
 ```{r sim_results, fig.height=6, fig.width=8}
-par(las=1, mfrow=c(1,2))
+par(las=1, mfrow=c(1,2), family='serif',cex.lab=1.3, cex.axis=1.3)
 cols1 = RColorBrewer::brewer.pal(n = 5, 'Dark2')
 plot(jitter(thetas$sigma), tstar_vals[,1] %% 48,panel.first = grid(),
      col = cols1[as.numeric(as.factor(thetas$mu))],
